@@ -29,8 +29,7 @@ token, certificados y logs.
   },
   "security": {
     "allowedOrigins": [
-      "https://pos.cuadra.app",
-      "https://app.cuadraerp.com"
+      "*"
     ],
     "requireAuthentication": true
   },
@@ -67,13 +66,16 @@ diferente de `server.port`.
 
 ### `security.allowedOrigins`
 
-Lista exacta de orígenes web autorizados. Incluya esquema y host, sin rutas:
+Use `"*"` para aceptar solicitudes CORS desde cualquier origen:
 
 ```json
-"https://pos.cuadra.app"
+"*"
 ```
 
-No utilice `*` ni agregue sitios que no controle.
+El agente refleja el origen recibido en `Access-Control-Allow-Origin`. La
+autenticación Bearer continúa siendo obligatoria aunque CORS permita el origen.
+También puede reemplazar `"*"` por una lista de orígenes exactos para restringir
+el acceso desde navegadores.
 
 ### `security.requireAuthentication`
 

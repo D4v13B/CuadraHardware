@@ -47,10 +47,7 @@ impl Default for Config {
                 http_port: default_http_port(),
             },
             security: SecurityConfig {
-                allowed_origins: vec![
-                    "https://pos.cuadra.app".into(),
-                    "https://app.cuadraerp.com".into(),
-                ],
+                allowed_origins: vec!["*".into()],
                 require_authentication: true,
             },
             logging: LoggingConfig {

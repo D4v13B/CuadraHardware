@@ -7,8 +7,7 @@
   },
   "security": {
     "allowedOrigins": [
-      "https://pos.cuadra.app",
-      "https://app.cuadraerp.com"
+      "*"
     ],
     "requireAuthentication": true
   },

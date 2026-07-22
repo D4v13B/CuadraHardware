@@ -54,13 +54,19 @@ token mediante un proceso de emparejamiento o configuración segura.
 
 ## CORS y consola interna
 
-Las solicitudes de navegador externas sólo aceptan orígenes listados en
-`security.allowedOrigins`. La interfaz `/tester` es servida por el mismo agente y
-utiliza el mismo origen local.
+El valor `"*"` en `security.allowedOrigins` permite cualquier origen CORS. La
+interfaz `/tester` es servida por el mismo agente y utiliza el mismo origen local.
+La autenticación Bearer permanece activa para las solicitudes externas.
 
 CORS protege el contexto del navegador, pero no sustituye la autenticación para
 programas locales. Los clientes que llaman directamente a la API deben usar el
 token.
+
+`GET /v1/token` permite que el POS obtenga el token sin configuración manual,
+pero sólo acepta conexiones TCP desde loopback. Como CORS está configurado con
+`"*"`, cualquier página ejecutada en el navegador de esa misma computadora puede
+solicitarlo; la restricción evita otras computadoras, no otros sitios abiertos
+localmente. La respuesta se marca como `no-store`.
 
 ## Permisos
 

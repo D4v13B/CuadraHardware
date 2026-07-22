@@ -41,6 +41,10 @@ impl Credentials {
         };
         constant_time_eq(candidate.as_bytes(), self.token.as_bytes())
     }
+
+    pub fn token(&self) -> &str {
+        &self.token
+    }
 }
 
 fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {

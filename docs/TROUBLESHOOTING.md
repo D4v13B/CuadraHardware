@@ -95,10 +95,10 @@ requiere pegarlo.
 
 ## `403 origen no permitido`
 
-Agregue el origen exacto del POS a `security.allowedOrigins`, por ejemplo:
+Confirme que `security.allowedOrigins` permita cualquier origen:
 
 ```json
-"https://pos.cuadra.app"
+"*"
 ```
 
 Reinicie el servicio después del cambio.

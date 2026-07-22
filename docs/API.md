@@ -29,6 +29,20 @@ Durante desarrollo, si se define `CUADRA_POS_AGENT_DATA_DIR`, se encuentra en es
 directorio. La interfaz interna servida por el agente utiliza un flujo del mismo
 origen y no solicita pegar el token.
 
+El POS puede obtener el token automáticamente desde la misma computadora:
+
+```http
+GET https://localhost:17443/v1/token
+```
+
+```json
+{"token":"..."}
+```
+
+El endpoint valida que la conexión TCP provenga de loopback (`127.0.0.1` o
+`::1`) y envía `Cache-Control: no-store`. El agente no escucha en interfaces de
+red, por lo que otra computadora no puede solicitarlo directamente.
+
 ## Endpoints
 
 | Método | Ruta | Autenticación | Descripción |
@@ -36,6 +50,7 @@ origen y no solicita pegar el token.
 | `GET` | `/` | No | Redirige funcionalmente a la interfaz embebida |
 | `GET` | `/tester` | No | Consola interna de diagnóstico |
 | `GET` | `/health` | No | Estado y versión del agente |
+| `GET` | `/v1/token` | Local | Obtiene automáticamente el token de esta computadora |
 | `GET` | `/v1/printers` | Sí | Impresoras de Windows y puertos seriales |
 | `POST` | `/v1/print` | Sí | Envía bytes RAW y opcionalmente abre la gaveta o corta el papel |
 
@@ -231,6 +246,7 @@ Los errores de dispositivo se devuelven como texto descriptivo.
 
 ## CORS
 
-El navegador sólo puede utilizar los orígenes declarados en
-`security.allowedOrigins`. Las llamadas de servidor a servidor no incluyen
-`Origin`, pero siguen necesitando el token.
+Con `"*"` en `security.allowedOrigins`, cualquier origen del navegador puede
+utilizar la API. El agente refleja el origen recibido y sigue exigiendo el token
+Bearer. Las llamadas de servidor a servidor normalmente no incluyen `Origin`,
+pero también necesitan el token.
