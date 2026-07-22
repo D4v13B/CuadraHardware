@@ -1,0 +1,19 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 17443,
+    "tlsEnabled": true,
+    "httpPort": 17442
+  },
+  "security": {
+    "allowedOrigins": [
+      "https://pos.cuadra.app",
+      "https://app.cuadraerp.com"
+    ],
+    "requireAuthentication": true
+  },
+  "logging": {
+    "level": "info",
+    "directory": "C:\\ProgramData\\Cuadra ERP\\Cuadra POS Agent\\logs"
+  }
+}

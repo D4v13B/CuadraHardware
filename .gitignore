@@ -1,0 +1,7 @@
+/target/
+/dist/
+/data/
+*.log
+*.pfx
+*.key
+installer/.wix/
