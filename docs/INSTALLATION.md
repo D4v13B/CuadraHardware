@@ -1,5 +1,12 @@
 # Instalación y administración del servicio
 
+## Paquete ZIP para clientes
+
+Descargue `CuadraPOSAgent-<versión>-windows-x64.zip` desde la página de releases
+de GitHub, extraiga todo su contenido y ejecute `Install.ps1` como administrador.
+El paquete contiene el ejecutable, la configuración predeterminada y los scripts
+necesarios para registrar el servicio y el certificado local.
+
 ## Comportamiento esperado en producción
 
 El agente debe ejecutarse como servicio de Windows. Abrir el `.exe` directamente

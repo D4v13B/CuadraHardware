@@ -1,0 +1,26 @@
+CUADRA POS AGENT PARA WINDOWS
+============================
+
+REQUISITOS
+- Windows 10 u 11 de 64 bits.
+- Una impresora instalada en Windows, un puerto serial o una impresora TCP.
+- Permisos de administrador para instalar el servicio y el certificado local.
+
+INSTALACIÓN
+1. Extraiga TODO el contenido de este ZIP a una carpeta local.
+2. Haga clic derecho en Install.ps1 y seleccione "Ejecutar con PowerShell".
+   Si Windows lo bloquea, abra PowerShell como administrador en esta carpeta y ejecute:
+
+   Set-ExecutionPolicy -Scope Process Bypass
+   .\Install.ps1
+
+3. Acepte la instalación del certificado local.
+4. Abra https://localhost:17443/tester para comprobar impresora, gaveta y corte.
+
+ENDPOINTS LOCALES
+- HTTPS: https://localhost:17443
+- HTTP:  http://127.0.0.1:17442
+- Estado: /health
+- Token automático local: /v1/token
+
+El agente sólo escucha en la interfaz loopback de esta computadora.
