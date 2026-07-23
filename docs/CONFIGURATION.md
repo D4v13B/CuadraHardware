@@ -28,9 +28,6 @@ token, certificados y logs.
     "httpPort": 17442
   },
   "security": {
-    "allowedOrigins": [
-      "*"
-    ],
     "requireAuthentication": true
   },
   "logging": {
@@ -64,18 +61,11 @@ archivos de configuración antiguos que no incluyan esta propiedad. Use `null`
 para desactivar el listener HTTP cuando `tlsEnabled` sea `true`. Debe ser
 diferente de `server.port`.
 
-### `security.allowedOrigins`
+### CORS
 
-Use `"*"` para aceptar solicitudes CORS desde cualquier origen:
-
-```json
-"*"
-```
-
-El agente refleja el origen recibido en `Access-Control-Allow-Origin`. La
-autenticación Bearer continúa siendo obligatoria aunque CORS permita el origen.
-También puede reemplazar `"*"` por una lista de orígenes exactos para restringir
-el acceso desde navegadores.
+El agente permite solicitudes desde cualquier origen y responde con
+`Access-Control-Allow-Origin: *`. No utiliza cookies ni credenciales CORS. La
+autenticación Bearer continúa siendo obligatoria para los endpoints protegidos.
 
 ### `security.requireAuthentication`
 

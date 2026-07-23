@@ -1,6 +1,6 @@
 #define MyAppName "Cuadra POS Agent"
 #ifndef MyAppVersion
-  #define MyAppVersion "0.1.0"
+  #define MyAppVersion "0.1.1"
 #endif
 #define MyAppPublisher "Cuadra ERP"
 #define MyAppExeName "cuadra-pos-agent.exe"
@@ -44,7 +44,7 @@ Source: "..\config\config.example.json"; DestDir: "{commonappdata}\Cuadra ERP\Cu
 [Run]
 Filename: "{sys}\sc.exe"; Parameters: "stop CuadraPosAgent"; Flags: runhidden waituntilterminated; StatusMsg: "Deteniendo versión anterior..."
 Filename: "{sys}\sc.exe"; Parameters: "delete CuadraPosAgent"; Flags: runhidden waituntilterminated
-Filename: "{app}\{#MyAppExeName}"; Parameters: "--install-ca"; Flags: runhidden waituntilterminated; StatusMsg: "Preparando conexión segura..."
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--install-ca"; Flags: runhidden waituntilterminated ignoreerrors; StatusMsg: "Preparando conexión segura..."
 Filename: "{sys}\sc.exe"; Parameters: "create CuadraPosAgent binPath= ""{app}\{#MyAppExeName} --service"" start= auto DisplayName= ""Cuadra POS Agent"""; Flags: runhidden waituntilterminated; StatusMsg: "Registrando el servicio..."
 Filename: "{sys}\sc.exe"; Parameters: "description CuadraPosAgent ""Agente local para hardware de Cuadra POS."""; Flags: runhidden waituntilterminated
 Filename: "{sys}\sc.exe"; Parameters: "failure CuadraPosAgent reset= 86400 actions= restart/5000/restart/15000/restart/30000"; Flags: runhidden waituntilterminated

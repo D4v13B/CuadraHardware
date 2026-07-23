@@ -93,15 +93,12 @@ $token = (Get-Content `
 Envíelo como `Bearer`. La interfaz `/tester` gestiona su acceso interno y no
 requiere pegarlo.
 
-## `403 origen no permitido`
+## Error de CORS
 
-Confirme que `security.allowedOrigins` permita cualquier origen:
-
-```json
-"*"
-```
-
-Reinicie el servicio después del cambio.
+El agente responde con `Access-Control-Allow-Origin: *`. Si el POS se sirve por
+HTTPS, llame a `https://localhost:17443`; los navegadores pueden bloquear una
+llamada HTTP desde una página HTTPS como contenido mixto antes de contactar al
+agente.
 
 ## No aparecen impresoras
 

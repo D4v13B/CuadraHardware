@@ -1,6 +1,6 @@
 use axum::{
     Json, Router,
-    extract::{ConnectInfo, State},
+    extract::State,
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{Html, IntoResponse, Response},
     routing::{get, post},
@@ -39,8 +39,8 @@ struct PrintResponse {
 }
 
 #[derive(Serialize)]
-struct TokenResponse<'a> {
-    token: &'a str,
+struct KeyResponse<'a> {
+    key: &'a str,
 }
 
 pub async fn run_server(
@@ -66,29 +66,50 @@ pub async fn run_server(
         .route("/tester", get(tester))
         .route("/health", get(health).options(preflight))
         .route("/v1/token", get(local_token).options(preflight))
+        .route("/v1/session", get(local_token).options(preflight))
         .route("/v1/print", post(print_job).options(preflight))
         .route("/v1/printers", get(list_printers).options(preflight))
         .with_state(state);
-    let address = SocketAddr::new(config.server.host, config.server.port);
     let cancellation = cancellation.unwrap_or_default();
-    tracing::info!(%address, tls = config.server.tls_enabled, "iniciando Cuadra POS Agent");
 
     if config.server.tls_enabled {
-        security::ensure_certificates()?;
-        let (cert, key) = security::cert_paths();
-        let tls = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key).await?;
-        let https = serve_https(address, tls, app.clone(), cancellation.clone());
-        if let Some(http_port) = config.server.http_port {
-            let http_address = SocketAddr::new(config.server.host, http_port);
-            tracing::info!(%http_address, tls = false, "iniciando Cuadra POS Agent");
-            tokio::try_join!(https, serve_http(http_address, app, cancellation.clone()))?;
-        } else {
-            https.await?;
+        match load_tls_config().await {
+            Ok(tls) => {
+                let https_address = SocketAddr::new(config.server.host, config.server.port);
+                tracing::info!(%https_address, tls = true, "iniciando Cuadra POS Agent");
+                let https = serve_https(https_address, tls, app.clone(), cancellation.clone());
+                if let Some(http_port) = config.server.http_port {
+                    let http_address = SocketAddr::new(config.server.host, http_port);
+                    tracing::info!(%http_address, tls = false, "iniciando Cuadra POS Agent");
+                    tokio::try_join!(https, serve_http(http_address, app, cancellation.clone()))?;
+                } else {
+                    https.await?;
+                }
+            }
+            Err(error) => {
+                let http_port = config.server.http_port.unwrap_or(config.server.port);
+                let http_address = SocketAddr::new(config.server.host, http_port);
+                tracing::warn!(
+                    %error,
+                    %http_address,
+                    "no se pudo preparar HTTPS; el agente continuará únicamente por HTTP"
+                );
+                serve_http(http_address, app, cancellation).await?;
+            }
         }
     } else {
+        let address = SocketAddr::new(config.server.host, config.server.port);
+        tracing::info!(%address, tls = false, "iniciando Cuadra POS Agent");
         serve_http(address, app, cancellation).await?;
     }
     Ok(())
+}
+
+async fn load_tls_config()
+-> Result<axum_server::tls_rustls::RustlsConfig, Box<dyn std::error::Error + Send + Sync>> {
+    security::ensure_certificates()?;
+    let (cert, key) = security::cert_paths();
+    Ok(axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key).await?)
 }
 
 async fn serve_https(
@@ -105,7 +126,7 @@ async fn serve_https(
     });
     axum_server::bind_rustls(address, tls)
         .handle(handle)
-        .serve(app.into_make_service_with_connect_info::<SocketAddr>())
+        .serve(app.into_make_service())
         .await
 }
 
@@ -115,12 +136,9 @@ async fn serve_http(
     cancellation: CancellationToken,
 ) -> Result<(), std::io::Error> {
     let listener = tokio::net::TcpListener::bind(address).await?;
-    axum::serve(
-        listener,
-        app.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .with_graceful_shutdown(shutdown_signal(cancellation))
-    .await
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal(cancellation))
+        .await
 }
 
 async fn shutdown_signal(cancellation: CancellationToken) {
@@ -134,8 +152,8 @@ async fn shutdown_signal(cancellation: CancellationToken) {
     }
 }
 
-async fn health(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
-    let origin = valid_origin(&state.config, &headers);
+async fn health(headers: HeaderMap) -> Response {
+    let origin = valid_origin(&headers);
     if headers.contains_key(header::ORIGIN) && origin.is_none() {
         return (StatusCode::FORBIDDEN, "origen no permitido").into_response();
     }
@@ -154,29 +172,23 @@ async fn tester() -> Html<&'static str> {
     Html(include_str!("../assets/tester.html"))
 }
 
-async fn local_token(
-    ConnectInfo(peer): ConnectInfo<SocketAddr>,
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Response {
-    if !is_local_peer(peer) {
-        return (
-            StatusCode::FORBIDDEN,
-            "el token sólo está disponible localmente",
-        )
-            .into_response();
-    }
-    let origin = valid_origin(&state.config, &headers);
+async fn local_token(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    let origin = valid_origin(&headers);
     if headers.contains_key(header::ORIGIN) && origin.is_none() {
         return (StatusCode::FORBIDDEN, "origen no permitido").into_response();
     }
     let mut response = with_cors(
-        Json(TokenResponse {
-            token: state.credentials.token(),
+        Json(KeyResponse {
+            key: state.credentials.token(),
         })
         .into_response(),
         origin.as_deref(),
     );
+    prevent_caching(&mut response);
+    response
+}
+
+fn prevent_caching(response: &mut Response) {
     response.headers_mut().insert(
         header::CACHE_CONTROL,
         HeaderValue::from_static("no-store, no-cache, must-revalidate"),
@@ -184,11 +196,6 @@ async fn local_token(
     response
         .headers_mut()
         .insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
-    response
-}
-
-fn is_local_peer(peer: SocketAddr) -> bool {
-    peer.ip().is_loopback()
 }
 
 async fn print_job(
@@ -196,9 +203,10 @@ async fn print_job(
     headers: HeaderMap,
     Json(request): Json<printer::PrintRequest>,
 ) -> Response {
+    let cors_origin = valid_origin(&headers);
     let origin = match authorize(&state, &headers) {
         Ok(origin) => origin,
-        Err(error) => return error.into_response(),
+        Err(error) => return with_cors(error.into_response(), cors_origin.as_deref()),
     };
     match printer::print(request).await {
         Ok(outcome) => with_cors(
@@ -222,9 +230,10 @@ async fn print_job(
 }
 
 async fn list_printers(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    let cors_origin = valid_origin(&headers);
     let origin = match authorize(&state, &headers) {
         Ok(origin) => origin,
-        Err(error) => return error.into_response(),
+        Err(error) => return with_cors(error.into_response(), cors_origin.as_deref()),
     };
     let windows_printers = printer::windows_spooler::list().unwrap_or_default();
     let serial_ports = printer::serial::list_devices().unwrap_or_default();
@@ -238,15 +247,15 @@ async fn list_printers(State(state): State<Arc<AppState>>, headers: HeaderMap) -
     )
 }
 
-async fn preflight(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
-    let Some(origin) = valid_origin(&state.config, &headers) else {
+async fn preflight(headers: HeaderMap) -> Response {
+    let Some(_origin) = valid_origin(&headers) else {
         return (StatusCode::FORBIDDEN, "origen no permitido").into_response();
     };
     let mut response = StatusCode::NO_CONTENT.into_response();
     let output = response.headers_mut();
     output.insert(
         header::ACCESS_CONTROL_ALLOW_ORIGIN,
-        HeaderValue::from_str(&origin).expect("origin validado"),
+        HeaderValue::from_static("*"),
     );
     output.insert(
         header::ACCESS_CONTROL_ALLOW_METHODS,
@@ -260,16 +269,10 @@ async fn preflight(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Re
         header::ACCESS_CONTROL_MAX_AGE,
         HeaderValue::from_static("600"),
     );
-    if headers
-        .get("access-control-request-private-network")
-        .and_then(|value| value.to_str().ok())
-        == Some("true")
-    {
-        output.insert(
-            "access-control-allow-private-network",
-            HeaderValue::from_static("true"),
-        );
-    }
+    output.insert(
+        "access-control-allow-private-network",
+        HeaderValue::from_static("true"),
+    );
     response
 }
 
@@ -288,7 +291,7 @@ fn authorize(
     if let Some(origin) = tester_origin(&state.config, headers) {
         return Ok(Some(origin));
     }
-    let origin = valid_origin(&state.config, headers);
+    let origin = valid_origin(headers);
     if headers.contains_key(header::ORIGIN) && origin.is_none() {
         return Err((StatusCode::FORBIDDEN, "origen no permitido"));
     }
@@ -303,17 +306,9 @@ fn authorize(
     Ok(origin)
 }
 
-fn valid_origin(config: &Config, headers: &HeaderMap) -> Option<String> {
+fn valid_origin(headers: &HeaderMap) -> Option<String> {
     let origin = headers.get(header::ORIGIN)?.to_str().ok()?;
-    if is_tester_origin(config, origin) {
-        return Some(origin.to_owned());
-    }
-    config
-        .security
-        .allowed_origins
-        .iter()
-        .any(|allowed| allowed == "*" || allowed == origin)
-        .then(|| origin.to_owned())
+    Some(origin.to_owned())
 }
 
 fn tester_origin(config: &Config, headers: &HeaderMap) -> Option<String> {
@@ -338,27 +333,29 @@ fn is_tester_origin(config: &Config, origin: &str) -> bool {
 }
 
 fn with_cors(mut response: Response, origin: Option<&str>) -> Response {
-    if let Some(origin) = origin.and_then(|value| HeaderValue::from_str(value).ok()) {
-        response
-            .headers_mut()
-            .insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, origin);
-        response
-            .headers_mut()
-            .insert(header::VARY, HeaderValue::from_static("Origin"));
+    if origin.is_some() {
+        response.headers_mut().insert(
+            header::ACCESS_CONTROL_ALLOW_ORIGIN,
+            HeaderValue::from_static("*"),
+        );
+        response.headers_mut().insert(
+            "access-control-allow-private-network",
+            HeaderValue::from_static("true"),
+        );
     }
     response
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{is_local_peer, valid_origin};
-    use crate::config::Config;
-    use axum::http::{HeaderMap, HeaderValue, header};
+    use super::{valid_origin, with_cors};
+    use axum::{
+        http::{HeaderMap, HeaderValue, header},
+        response::IntoResponse,
+    };
 
     #[test]
-    fn wildcard_allows_any_valid_origin() {
-        let mut config = Config::default();
-        config.security.allowed_origins = vec!["*".into()];
+    fn allows_any_valid_origin() {
         let mut headers = HeaderMap::new();
         headers.insert(
             header::ORIGIN,
@@ -366,15 +363,30 @@ mod tests {
         );
 
         assert_eq!(
-            valid_origin(&config, &headers).as_deref(),
+            valid_origin(&headers).as_deref(),
             Some("https://otro-pos.example")
         );
     }
 
     #[test]
-    fn token_peer_must_be_loopback() {
-        assert!(is_local_peer("127.0.0.1:50000".parse().unwrap()));
-        assert!(is_local_peer("[::1]:50000".parse().unwrap()));
-        assert!(!is_local_peer("192.168.1.25:50000".parse().unwrap()));
+    fn cors_response_allows_every_origin_without_credentials() {
+        let response = with_cors(().into_response(), Some("https://pos-credenciales.example"));
+
+        assert_eq!(
+            response.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
+            Some(&HeaderValue::from_static("*"))
+        );
+        assert!(
+            response
+                .headers()
+                .get(header::ACCESS_CONTROL_ALLOW_CREDENTIALS)
+                .is_none()
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("access-control-allow-private-network"),
+            Some(&HeaderValue::from_static("true"))
+        );
     }
 }

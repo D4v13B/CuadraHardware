@@ -26,7 +26,6 @@ fn default_http_port() -> Option<u16> {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SecurityConfig {
-    pub allowed_origins: Vec<String>,
     pub require_authentication: bool,
 }
 
@@ -47,7 +46,6 @@ impl Default for Config {
                 http_port: default_http_port(),
             },
             security: SecurityConfig {
-                allowed_origins: vec!["*".into()],
                 require_authentication: true,
             },
             logging: LoggingConfig {

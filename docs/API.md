@@ -35,13 +35,16 @@ El POS puede obtener el token automáticamente desde la misma computadora:
 GET https://localhost:17443/v1/token
 ```
 
+También está disponible mediante el alias `/v1/session`, útil cuando una
+extensión del navegador bloquea rutas que contienen la palabra `token`.
+
 ```json
-{"token":"..."}
+{"key":"..."}
 ```
 
-El endpoint valida que la conexión TCP provenga de loopback (`127.0.0.1` o
-`::1`) y envía `Cache-Control: no-store`. El agente no escucha en interfaces de
-red, por lo que otra computadora no puede solicitarlo directamente.
+El endpoint utiliza la misma seguridad y política CORS que `/health`, y envía
+`Cache-Control: no-store`. El agente sólo escucha en la interfaz loopback, por
+lo que otra computadora no puede solicitarlo directamente.
 
 ## Endpoints
 
@@ -51,6 +54,7 @@ red, por lo que otra computadora no puede solicitarlo directamente.
 | `GET` | `/tester` | No | Consola interna de diagnóstico |
 | `GET` | `/health` | No | Estado y versión del agente |
 | `GET` | `/v1/token` | Local | Obtiene automáticamente el token de esta computadora |
+| `GET` | `/v1/session` | Local | Alias de la key para compatibilidad con extensiones |
 | `GET` | `/v1/printers` | Sí | Impresoras de Windows y puertos seriales |
 | `POST` | `/v1/print` | Sí | Envía bytes RAW y opcionalmente abre la gaveta o corta el papel |
 
@@ -64,7 +68,7 @@ Respuesta:
 {
   "status": "ok",
   "service": "cuadra-pos-agent",
-  "version": "0.1.0"
+  "version": "0.1.1"
 }
 ```
 
@@ -246,7 +250,7 @@ Los errores de dispositivo se devuelven como texto descriptivo.
 
 ## CORS
 
-Con `"*"` en `security.allowedOrigins`, cualquier origen del navegador puede
-utilizar la API. El agente refleja el origen recibido y sigue exigiendo el token
-Bearer. Las llamadas de servidor a servidor normalmente no incluyen `Origin`,
-pero también necesitan el token.
+El agente responde con `Access-Control-Allow-Origin: *`, por lo que cualquier
+origen del navegador puede utilizar la API. No utiliza cookies ni credenciales
+CORS y sigue exigiendo el token Bearer. Las llamadas de servidor a servidor
+normalmente no incluyen `Origin`, pero también necesitan el token.

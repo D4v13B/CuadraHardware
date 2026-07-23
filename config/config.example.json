@@ -6,9 +6,6 @@
     "httpPort": 17442
   },
   "security": {
-    "allowedOrigins": [
-      "*"
-    ],
     "requireAuthentication": true
   },
   "logging": {

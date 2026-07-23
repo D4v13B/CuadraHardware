@@ -43,6 +43,18 @@ function Wait-ServiceState([string]$State, [int]$Seconds = 20) {
     }
 }
 
+function Get-AgentEndpoint {
+    $configuration = Join-Path $dataDirectory "config.json"
+    if (Test-Path $configuration) {
+        $settings = Get-Content -LiteralPath $configuration -Raw | ConvertFrom-Json
+        if ($settings.server.tlsEnabled) {
+            return "https://localhost:$($settings.server.port)"
+        }
+        return "http://localhost:$($settings.server.port)"
+    }
+    return "http://localhost:17442"
+}
+
 switch ($Action) {
     "Install" {
         Assert-Administrator
@@ -65,10 +77,20 @@ switch ($Action) {
                 -Destination $configuration
         }
 
-        & $installedExecutable --install-ca
-        if ($LASTEXITCODE -ne 0) {
-            throw "No se pudo preparar el certificado local."
+        $settings = Get-Content -LiteralPath $configuration -Raw | ConvertFrom-Json
+        if ($settings.server.tlsEnabled) {
+            & $installedExecutable --install-ca
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warning "No se pudo preparar el certificado local. Se continuará únicamente por HTTP."
+                $settings.server.tlsEnabled = $false
+                if ($null -ne $settings.server.httpPort) {
+                    $settings.server.port = $settings.server.httpPort
+                }
+                $settings | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $configuration -Encoding utf8
+            }
         }
+
+        $agentEndpoint = Get-AgentEndpoint
 
         if (-not $existing) {
             $binaryPath = '"{0}" --service' -f $installedExecutable
@@ -87,14 +109,14 @@ switch ($Action) {
         & sc.exe sidtype $serviceName unrestricted | Out-Null
         @(
             "[InternetShortcut]"
-            "URL=https://localhost:17443/tester"
+            "URL=$agentEndpoint/tester"
             "IconFile=$installedExecutable"
             "IconIndex=0"
         ) | Set-Content -LiteralPath $testerShortcut -Encoding ascii
         Start-Service -Name $serviceName
         Wait-ServiceState "Running"
         Write-Host "Cuadra POS Agent instalado y ejecutándose en segundo plano."
-        Write-Host "Interfaz: https://localhost:17443/tester"
+        Write-Host "Interfaz: $agentEndpoint/tester"
     }
 
     "Status" {
@@ -105,7 +127,8 @@ switch ($Action) {
         }
         $service | Select-Object Name, DisplayName, Status, StartType
         try {
-            $health = Invoke-RestMethod "https://localhost:17443/health"
+            $agentEndpoint = Get-AgentEndpoint
+            $health = Invoke-RestMethod "$agentEndpoint/health"
             $health | Format-List
         }
         catch {
