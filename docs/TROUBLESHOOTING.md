@@ -1,5 +1,11 @@
 # Solución de problemas
 
+## Falta `VCRUNTIME140.dll`
+
+Actualice a la versión 0.1.3 o posterior. Estas versiones enlazan el runtime de
+Visual C++ de forma estática y no requieren instalar el Visual C++
+Redistributable en la PC cliente.
+
 ## El `.exe` abre una terminal y se cierra
 
 El ejecutable no es un programa de escritorio tradicional. Sin instalación se

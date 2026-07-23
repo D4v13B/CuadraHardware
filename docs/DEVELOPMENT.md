@@ -85,6 +85,10 @@ gaveta sólo se agregue cuando `cash` sea verdadero.
 cargo build --release --target x86_64-pc-windows-msvc
 ```
 
+El target MSVC usa `target-feature=+crt-static` desde `.cargo/config.toml`. El
+ejecutable resultante incluye el runtime de Visual C++ y no requiere que la PC
+cliente tenga `VCRUNTIME140.dll` instalado.
+
 Ejecutable:
 
 ```text
