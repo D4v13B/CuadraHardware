@@ -1,6 +1,6 @@
 param(
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$Version = "0.1.3",
+    [string]$Version = "0.1.4",
     [switch]$SkipChecks
 )
 
@@ -41,10 +41,17 @@ try {
     New-Item -ItemType Directory -Path (Join-Path $stage "config") -Force | Out-Null
 
     Copy-Item "target\x86_64-pc-windows-msvc\release\cuadra-pos-agent.exe" $stage
-    Copy-Item "installer\manage-service.ps1" (Join-Path $stage "installer")
+    $managerScript = Join-Path $stage "installer\manage-service.ps1"
+    Copy-Item "installer\manage-service.ps1" $managerScript
     Copy-Item "config\config.example.json" (Join-Path $stage "config")
-    Copy-Item "installer\package\Install.ps1" (Join-Path $stage "Install.ps1")
+    $installScript = Join-Path $stage "Install.ps1"
+    Copy-Item "installer\package\Install.ps1" $installScript
     Copy-Item "installer\package\LEEME.txt" (Join-Path $stage "LEEME.txt")
+
+    foreach ($script in @($managerScript, $installScript)) {
+        $contents = [IO.File]::ReadAllText($script)
+        [IO.File]::WriteAllText($script, $contents, [Text.UTF8Encoding]::new($true))
+    }
 
     Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $zip -CompressionLevel Optimal
     if (-not (Test-Path -LiteralPath $zip)) { throw "No se generó el ZIP" }

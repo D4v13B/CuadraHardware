@@ -28,7 +28,31 @@ pub fn start_service_dispatcher() -> Result<(), windows_service::Error> {
 fn service_main(_arguments: Vec<OsString>) {
     if let Err(error) = run_service() {
         eprintln!("El servicio terminó con error: {error}");
+        write_startup_error(&error);
     }
+}
+
+#[cfg(windows)]
+fn write_startup_error(error: &dyn std::fmt::Display) {
+    use std::io::Write;
+
+    let directory = crate::config::data_dir();
+    if std::fs::create_dir_all(&directory).is_err() {
+        return;
+    }
+    let path = directory.join("startup-error.log");
+    let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    else {
+        return;
+    };
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|value| value.as_secs())
+        .unwrap_or_default();
+    let _ = writeln!(file, "{timestamp}: {error}");
 }
 
 #[cfg(windows)]

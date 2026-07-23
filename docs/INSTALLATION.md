@@ -103,13 +103,13 @@ Construcción:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\installer\build-installer.ps1 -Version 0.1.3
+.\installer\build-installer.ps1 -Version 0.1.4
 ```
 
 Salida:
 
 ```text
-dist\CuadraPOSAgent-0.1.3-x64.msi
+dist\CuadraPOSAgent-0.1.4-x64.msi
 dist\SHA256SUMS.txt
 ```
 
@@ -122,14 +122,14 @@ Con Inno Setup 6 instalado:
 
 ```powershell
 & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
-  "/DMyAppVersion=0.1.3" `
+  "/DMyAppVersion=0.1.4" `
   ".\installer\CuadraPOSAgent.iss"
 ```
 
 Salida esperada:
 
 ```text
-dist\CuadraPOSAgent-Setup-0.1.3.exe
+dist\CuadraPOSAgent-Setup-0.1.4.exe
 ```
 
 ## Verificación posterior

@@ -85,8 +85,15 @@ function Show-AgentStartupDiagnostics {
         Get-Content -LiteralPath $latestLog.FullName -Tail 30
     }
     else {
-        Write-Warning "No se encontró agent.log. Pruebe el ejecutable manualmente:"
-        Write-Warning ('& "{0}" --no-browser' -f $installedExecutable)
+        $startupLog = Join-Path $dataDirectory "startup-error.log"
+        if (Test-Path -LiteralPath $startupLog) {
+            Write-Warning "Errores de inicio en ${startupLog}:"
+            Get-Content -LiteralPath $startupLog -Tail 30
+        }
+        else {
+            Write-Warning "No se encontró agent.log. Pruebe el ejecutable manualmente:"
+            Write-Warning ('& "{0}" --no-browser' -f $installedExecutable)
+        }
     }
 }
 
@@ -121,7 +128,8 @@ switch ($Action) {
                 if ($null -ne $settings.server.httpPort) {
                     $settings.server.port = $settings.server.httpPort
                 }
-                $settings | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $configuration -Encoding utf8
+                $json = $settings | ConvertTo-Json -Depth 10
+                [IO.File]::WriteAllText($configuration, $json, [Text.UTF8Encoding]::new($false))
             }
         }
 

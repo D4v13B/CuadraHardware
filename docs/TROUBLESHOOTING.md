@@ -56,6 +56,10 @@ Desde la versión 0.1.2, el instalador muestra automáticamente el estado del
 servicio, los procesos que ocupan sus puertos y las últimas líneas de
 `agent.log` cuando `Start-Service` falla.
 
+La versión 0.1.4 también acepta archivos `config.json` guardados por Windows
+PowerShell 5 con marca UTF-8 BOM. Los errores que ocurren antes de inicializar
+`agent.log` quedan registrados en `startup-error.log`, junto a `config.json`.
+
 El modo servicio utiliza únicamente las señales del Administrador de control de
 servicios de Windows. `Ctrl+C` se registra sólo en el modo consola, ya que un
 servicio no tiene una consola asociada.

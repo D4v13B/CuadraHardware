@@ -77,7 +77,7 @@ pub fn load_or_create() -> Result<Config, Box<dyn std::error::Error + Send + Syn
     fs::create_dir_all(&directory)?;
     let path = directory.join("config.json");
     if path.exists() {
-        let config: Config = serde_json::from_slice(&fs::read(path)?)?;
+        let config = parse_config(&fs::read(path)?)?;
         if !config.server.host.is_loopback() {
             return Err("server.host debe ser una dirección loopback".into());
         }
@@ -92,9 +92,16 @@ pub fn load_or_create() -> Result<Config, Box<dyn std::error::Error + Send + Syn
     Ok(config)
 }
 
+fn parse_config(contents: &[u8]) -> Result<Config, serde_json::Error> {
+    let contents = contents
+        .strip_prefix(&[0xEF, 0xBB, 0xBF])
+        .unwrap_or(contents);
+    serde_json::from_slice(contents)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Config;
+    use super::{Config, parse_config};
 
     #[test]
     fn existing_config_gets_default_http_port() {
@@ -108,5 +115,21 @@ mod tests {
         .unwrap();
 
         assert_eq!(config.server.http_port, Some(17_442));
+    }
+
+    #[test]
+    fn accepts_utf8_bom_from_windows_powershell() {
+        let mut contents = vec![0xEF, 0xBB, 0xBF];
+        contents.extend_from_slice(
+            br#"{
+                "server": {"host":"127.0.0.1","port":17442,"tlsEnabled":false},
+                "security": {"requireAuthentication":true},
+                "logging": {"level":"info","directory":"logs"}
+            }"#,
+        );
+
+        let config = parse_config(&contents).expect("configuración UTF-8 con BOM válida");
+        assert!(!config.server.tls_enabled);
+        assert_eq!(config.server.port, 17_442);
     }
 }
