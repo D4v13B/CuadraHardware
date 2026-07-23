@@ -48,15 +48,40 @@ pub async fn run_server(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let listen_for_ctrl_c = cancellation.is_none();
     let config = load_or_create()?;
-    std::fs::create_dir_all(&config.logging.directory)?;
-    let file_appender = tracing_appender::rolling::daily(&config.logging.directory, "agent.log");
-    let (writer, _guard) = tracing_appender::non_blocking(file_appender);
-    let filter = tracing_subscriber::EnvFilter::try_new(&config.logging.level)
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .with_writer(writer)
-        .try_init();
+    let file_appender = std::fs::create_dir_all(&config.logging.directory)
+        .map_err(|error| error.to_string())
+        .and_then(|_| {
+            tracing_appender::rolling::RollingFileAppender::builder()
+                .rotation(tracing_appender::rolling::Rotation::DAILY)
+                .filename_prefix("agent.log")
+                .build(&config.logging.directory)
+                .map_err(|error| error.to_string())
+        });
+    let make_filter = || {
+        tracing_subscriber::EnvFilter::try_new(&config.logging.level)
+            .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
+    };
+    let _log_guard = match file_appender {
+        Ok(file_appender) => {
+            let (writer, guard) = tracing_appender::non_blocking(file_appender);
+            let _ = tracing_subscriber::fmt()
+                .with_env_filter(make_filter())
+                .with_writer(writer)
+                .try_init();
+            Some(guard)
+        }
+        Err(error) => {
+            eprintln!(
+                "No se pudo crear el archivo de log en {}: {error}. El agente continuará sin log de archivo.",
+                config.logging.directory.display()
+            );
+            let _ = tracing_subscriber::fmt()
+                .with_env_filter(make_filter())
+                .with_writer(std::io::stderr)
+                .try_init();
+            None
+        }
+    };
 
     let state = Arc::new(AppState {
         credentials: Credentials::load_or_create()?,

@@ -1,6 +1,6 @@
 [package]
 name = "cuadra-pos-agent"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2024"
 description = "Agente local seguro de hardware para Cuadra POS"
 authors = ["Cuadra ERP"]

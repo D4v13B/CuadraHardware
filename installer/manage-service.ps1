@@ -55,6 +55,23 @@ function Get-AgentEndpoint {
     return "http://localhost:17442"
 }
 
+function Set-AgentDataPermissions {
+    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $logsDirectory = Join-Path $dataDirectory "logs"
+    $grants = @(
+        '*S-1-5-18:(OI)(CI)F'
+        '*S-1-5-32-544:(OI)(CI)F'
+        "${currentUser}:(OI)(CI)M"
+    )
+    & icacls.exe $dataDirectory /inheritance:e /grant:r $grants | Out-Null
+    $dataExitCode = $LASTEXITCODE
+    & icacls.exe $logsDirectory /inheritance:e /grant:r $grants /T /C | Out-Null
+    $logsExitCode = $LASTEXITCODE
+    if ($dataExitCode -ne 0 -or $logsExitCode -ne 0) {
+        Write-Warning "No se pudieron actualizar todos los permisos de $dataDirectory."
+    }
+}
+
 function Show-AgentStartupDiagnostics {
     Write-Warning "Diagnóstico de inicio de Cuadra POS Agent:"
     & sc.exe queryex $serviceName
@@ -103,6 +120,8 @@ switch ($Action) {
         $source = (Resolve-Path $ExecutablePath).Path
         New-Item -ItemType Directory -Path $installDirectory -Force | Out-Null
         New-Item -ItemType Directory -Path $dataDirectory -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $dataDirectory "logs") -Force | Out-Null
+        Set-AgentDataPermissions
 
         $existing = Get-AgentService
         if ($existing) {

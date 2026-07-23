@@ -60,6 +60,11 @@ La versión 0.1.4 también acepta archivos `config.json` guardados por Windows
 PowerShell 5 con marca UTF-8 BOM. Los errores que ocurren antes de inicializar
 `agent.log` quedan registrados en `startup-error.log`, junto a `config.json`.
 
+Desde la versión 0.1.5, un error de permisos al crear `agent.log` no detiene el
+agente. El instalador repara los permisos del directorio de datos para
+`LocalSystem`, administradores y el usuario que realiza la instalación; si el
+archivo sigue sin poder crearse, el agente continúa usando la salida estándar.
+
 El modo servicio utiliza únicamente las señales del Administrador de control de
 servicios de Windows. `Ctrl+C` se registra sólo en el modo consola, ya que un
 servicio no tiene una consola asociada.
