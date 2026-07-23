@@ -46,6 +46,7 @@ struct KeyResponse<'a> {
 pub async fn run_server(
     cancellation: Option<CancellationToken>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let listen_for_ctrl_c = cancellation.is_none();
     let config = load_or_create()?;
     std::fs::create_dir_all(&config.logging.directory)?;
     let file_appender = tracing_appender::rolling::daily(&config.logging.directory, "agent.log");
@@ -77,11 +78,33 @@ pub async fn run_server(
             Ok(tls) => {
                 let https_address = SocketAddr::new(config.server.host, config.server.port);
                 tracing::info!(%https_address, tls = true, "iniciando Cuadra POS Agent");
-                let https = serve_https(https_address, tls, app.clone(), cancellation.clone());
+                let https = serve_https(
+                    https_address,
+                    tls,
+                    app.clone(),
+                    cancellation.clone(),
+                    listen_for_ctrl_c,
+                );
                 if let Some(http_port) = config.server.http_port {
                     let http_address = SocketAddr::new(config.server.host, http_port);
                     tracing::info!(%http_address, tls = false, "iniciando Cuadra POS Agent");
-                    tokio::try_join!(https, serve_http(http_address, app, cancellation.clone()))?;
+                    let http =
+                        serve_http(http_address, app, cancellation.clone(), listen_for_ctrl_c);
+                    tokio::pin!(https, http);
+                    tokio::select! {
+                        result = &mut https => {
+                            if let Err(error) = result {
+                                tracing::error!(%error, %https_address, "el listener HTTPS dejó de funcionar");
+                            }
+                            http.await?;
+                        }
+                        result = &mut http => {
+                            if let Err(error) = result {
+                                tracing::error!(%error, %http_address, "el listener HTTP dejó de funcionar");
+                            }
+                            https.await?;
+                        }
+                    }
                 } else {
                     https.await?;
                 }
@@ -94,13 +117,13 @@ pub async fn run_server(
                     %http_address,
                     "no se pudo preparar HTTPS; el agente continuará únicamente por HTTP"
                 );
-                serve_http(http_address, app, cancellation).await?;
+                serve_http(http_address, app, cancellation, listen_for_ctrl_c).await?;
             }
         }
     } else {
         let address = SocketAddr::new(config.server.host, config.server.port);
         tracing::info!(%address, tls = false, "iniciando Cuadra POS Agent");
-        serve_http(address, app, cancellation).await?;
+        serve_http(address, app, cancellation, listen_for_ctrl_c).await?;
     }
     Ok(())
 }
@@ -117,11 +140,12 @@ async fn serve_https(
     tls: axum_server::tls_rustls::RustlsConfig,
     app: Router,
     cancellation: CancellationToken,
+    listen_for_ctrl_c: bool,
 ) -> Result<(), std::io::Error> {
     let handle = axum_server::Handle::new();
     let shutdown_handle = handle.clone();
     tokio::spawn(async move {
-        shutdown_signal(cancellation).await;
+        shutdown_signal(cancellation, listen_for_ctrl_c).await;
         shutdown_handle.graceful_shutdown(Some(Duration::from_secs(10)));
     });
     axum_server::bind_rustls(address, tls)
@@ -134,19 +158,26 @@ async fn serve_http(
     address: SocketAddr,
     app: Router,
     cancellation: CancellationToken,
+    listen_for_ctrl_c: bool,
 ) -> Result<(), std::io::Error> {
     let listener = tokio::net::TcpListener::bind(address).await?;
     axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal(cancellation))
+        .with_graceful_shutdown(shutdown_signal(cancellation, listen_for_ctrl_c))
         .await
 }
 
-async fn shutdown_signal(cancellation: CancellationToken) {
+async fn shutdown_signal(cancellation: CancellationToken, listen_for_ctrl_c: bool) {
+    if !listen_for_ctrl_c {
+        cancellation.cancelled().await;
+        return;
+    }
+
     tokio::select! {
         _ = cancellation.cancelled() => {},
         result = tokio::signal::ctrl_c() => {
             if let Err(error) = result {
                 tracing::error!(%error, "no se pudo escuchar Ctrl+C");
+                cancellation.cancelled().await;
             }
         }
     }
@@ -348,11 +379,13 @@ fn with_cors(mut response: Response, origin: Option<&str>) -> Response {
 
 #[cfg(test)]
 mod tests {
-    use super::{valid_origin, with_cors};
+    use super::{shutdown_signal, valid_origin, with_cors};
     use axum::{
         http::{HeaderMap, HeaderValue, header},
         response::IntoResponse,
     };
+    use std::time::Duration;
+    use tokio_util::sync::CancellationToken;
 
     #[test]
     fn allows_any_valid_origin() {
@@ -388,5 +421,26 @@ mod tests {
                 .get("access-control-allow-private-network"),
             Some(&HeaderValue::from_static("true"))
         );
+    }
+
+    #[tokio::test]
+    async fn service_shutdown_waits_for_cancellation_token() {
+        let cancellation = CancellationToken::new();
+        assert!(
+            tokio::time::timeout(
+                Duration::from_millis(25),
+                shutdown_signal(cancellation.clone(), false),
+            )
+            .await
+            .is_err()
+        );
+
+        cancellation.cancel();
+        tokio::time::timeout(
+            Duration::from_millis(100),
+            shutdown_signal(cancellation, false),
+        )
+        .await
+        .expect("el apagado del servicio debe responder a la cancelación");
     }
 }

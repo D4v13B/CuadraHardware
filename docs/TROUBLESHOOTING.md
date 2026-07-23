@@ -46,6 +46,14 @@ Si devuelve que no existe, abra PowerShell como administrador:
 
 ## El servicio se detiene
 
+Desde la versión 0.1.2, el instalador muestra automáticamente el estado del
+servicio, los procesos que ocupan sus puertos y las últimas líneas de
+`agent.log` cuando `Start-Service` falla.
+
+El modo servicio utiliza únicamente las señales del Administrador de control de
+servicios de Windows. `Ctrl+C` se registra sólo en el modo consola, ya que un
+servicio no tiene una consola asociada.
+
 Revise:
 
 ```powershell

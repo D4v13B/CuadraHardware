@@ -55,6 +55,41 @@ function Get-AgentEndpoint {
     return "http://localhost:17442"
 }
 
+function Show-AgentStartupDiagnostics {
+    Write-Warning "Diagnóstico de inicio de Cuadra POS Agent:"
+    & sc.exe queryex $serviceName
+
+    $configuration = Join-Path $dataDirectory "config.json"
+    if (Test-Path -LiteralPath $configuration) {
+        Write-Warning "Configuración: $configuration"
+        $settings = Get-Content -LiteralPath $configuration -Raw | ConvertFrom-Json
+        $ports = @($settings.server.port)
+        if ($settings.server.tlsEnabled -and $null -ne $settings.server.httpPort) {
+            $ports += $settings.server.httpPort
+        }
+        foreach ($port in $ports | Select-Object -Unique) {
+            $listeners = Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue
+            foreach ($listener in $listeners) {
+                $process = Get-Process -Id $listener.OwningProcess -ErrorAction SilentlyContinue
+                Write-Warning "Puerto $port ocupado por PID $($listener.OwningProcess) ($($process.ProcessName))."
+            }
+        }
+    }
+
+    $latestLog = Get-ChildItem -LiteralPath (Join-Path $dataDirectory "logs") `
+        -Filter "agent.log*" -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    if ($latestLog) {
+        Write-Warning "Últimas líneas de $($latestLog.FullName):"
+        Get-Content -LiteralPath $latestLog.FullName -Tail 30
+    }
+    else {
+        Write-Warning "No se encontró agent.log. Pruebe el ejecutable manualmente:"
+        Write-Warning ('& "{0}" --no-browser' -f $installedExecutable)
+    }
+}
+
 switch ($Action) {
     "Install" {
         Assert-Administrator
@@ -113,8 +148,14 @@ switch ($Action) {
             "IconFile=$installedExecutable"
             "IconIndex=0"
         ) | Set-Content -LiteralPath $testerShortcut -Encoding ascii
-        Start-Service -Name $serviceName
-        Wait-ServiceState "Running"
+        try {
+            Start-Service -Name $serviceName
+            Wait-ServiceState "Running"
+        }
+        catch {
+            Show-AgentStartupDiagnostics
+            throw
+        }
         Write-Host "Cuadra POS Agent instalado y ejecutándose en segundo plano."
         Write-Host "Interfaz: $agentEndpoint/tester"
     }
@@ -138,8 +179,14 @@ switch ($Action) {
 
     "Start" {
         Assert-Administrator
-        Start-Service -Name $serviceName
-        Wait-ServiceState "Running"
+        try {
+            Start-Service -Name $serviceName
+            Wait-ServiceState "Running"
+        }
+        catch {
+            Show-AgentStartupDiagnostics
+            throw
+        }
         Write-Host "Servicio iniciado."
     }
 

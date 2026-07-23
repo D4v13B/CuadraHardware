@@ -1,6 +1,6 @@
 #define MyAppName "Cuadra POS Agent"
 #ifndef MyAppVersion
-  #define MyAppVersion "0.1.1"
+  #define MyAppVersion "0.1.2"
 #endif
 #define MyAppPublisher "Cuadra ERP"
 #define MyAppExeName "cuadra-pos-agent.exe"
