@@ -68,7 +68,7 @@ Respuesta:
 {
   "status": "ok",
   "service": "cuadra-pos-agent",
-  "version": "0.1.5"
+  "version": "0.1.6"
 }
 ```
 
@@ -192,15 +192,20 @@ no intenta interpretar el tipo de pago; esa decisión pertenece al POS.
 ### Corte de papel
 
 Para cortar el papel al final del trabajo, envíe `"cut": true`. El agente añade
-el comando de corte completo ESC/POS:
+tres avances de línea y el comando de corte parcial ESC/POS compatible:
 
 ```text
-1D 56 00
-GS V 0
+0A 0A 0A 1D 56 01
+LF LF LF GS V 1
 ```
 
 Si `cut` se omite o es `false`, no se agrega el comando. Cuando `cash` y `cut`
 son verdaderos, el pulso de gaveta se envía primero y el corte al final.
+
+Con `windowsSpooler`, el contenido y la gaveta se envían en el primer documento
+RAW, y el corte se envía inmediatamente después como un segundo documento RAW
+inicializado con `ESC @`. Esto replica la operación independiente de corte de la
+consola de pruebas y mejora la compatibilidad con controladores XP-80.
 
 Respuesta exitosa:
 

@@ -74,11 +74,18 @@ pub async fn print(request: PrintRequest) -> Result<PrintOutcome, String> {
             data_base64,
             cash,
             cut,
-        } => (
-            windows_spooler::send(printer, prepare_payload(&data_base64, cash, cut)?).await?,
-            cash,
-            cut,
-        ),
+        } => {
+            let mut bytes_written =
+                windows_spooler::send(printer.clone(), prepare_payload(&data_base64, cash, false)?)
+                    .await?;
+            if cut {
+                // Some Windows ESC/POS drivers accept cutting only when it is
+                // sent as its own RAW document, which is also how the tester's
+                // dedicated cut action operates.
+                bytes_written += windows_spooler::send(printer, cut_job_payload()).await?;
+            }
+            (bytes_written, cash, cut)
+        }
     };
     Ok(PrintOutcome {
         bytes_written,
@@ -100,14 +107,20 @@ fn prepare_payload(value: &str, cash: bool, cut: bool) -> Result<Vec<u8>, String
         bytes.extend_from_slice(&[0x1b, 0x70, 0x00, 25, 250]);
     }
     if cut {
-        bytes.extend_from_slice(&[0x1d, 0x56, 0x00]);
+        // Feed the receipt past the cutter before using the basic partial-cut
+        // variant supported by older and clone ESC/POS printers such as XP-80.
+        bytes.extend_from_slice(&[0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x01]);
     }
     Ok(bytes)
 }
 
+fn cut_job_payload() -> Vec<u8> {
+    vec![0x1b, 0x40, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x01]
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{PrintRequest, prepare_payload};
+    use super::{PrintRequest, cut_job_payload, prepare_payload};
 
     #[test]
     fn deserializes_documented_windows_spooler_request() {
@@ -171,10 +184,10 @@ mod tests {
     }
 
     #[test]
-    fn appends_full_cut_when_cut_is_true() {
+    fn appends_cut_when_cut_is_true() {
         assert_eq!(
             prepare_payload("SG9sYQ==", false, true).unwrap(),
-            [b"Hola".as_slice(), &[0x1d, 0x56, 0x00]].concat()
+            [b"Hola".as_slice(), &[0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x01]].concat()
         );
     }
 
@@ -185,9 +198,17 @@ mod tests {
             [
                 b"Hola".as_slice(),
                 &[0x1b, 0x70, 0x00, 25, 250],
-                &[0x1d, 0x56, 0x00],
+                &[0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x01],
             ]
             .concat()
+        );
+    }
+
+    #[test]
+    fn creates_standalone_windows_cut_job_like_the_tester() {
+        assert_eq!(
+            cut_job_payload(),
+            [0x1b, 0x40, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x01]
         );
     }
 }

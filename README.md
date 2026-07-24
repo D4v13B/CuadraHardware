@@ -10,7 +10,8 @@ de dinero mediante Windows Spooler, TCP/IP o puerto serial.
 - Interfaz interna de diagnóstico en `https://localhost:17443/tester`.
 - Impresión RAW por Windows Spooler, TCP y serial.
 - Apertura de gaveta mediante `cash: true` y el pulso ESC/POS
-- Corte de papel mediante `cut: true` y el comando ESC/POS `GS V 0`.
+- Corte de papel mediante `cut: true`, tres avances de línea y el comando
+  ESC/POS de corte parcial `GS V 1` (`0A 0A 0A 1D 56 01`).
   `ESC p 0 25 250`.
 - Enumeración de impresoras de Windows y puertos COM.
 - Token de autenticación y certificado únicos por equipo.
